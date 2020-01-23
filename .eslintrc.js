@@ -19,5 +19,5 @@ module.exports = {
     sourceType: "module"
   },
   parser: "babel-eslint",
-  ignorePatterns: ["lib"]
+  ignorePatterns: ["lib", "node_modules"]
 };
