@@ -1,0 +1,9 @@
+{
+  "name": "@univ/setup",
+  "version": "0.1.0",
+  "description": "Setup a Univ abstraction layer",
+  "files": [
+    "lib"
+  ],
+  "main": "lib/index.js"
+}

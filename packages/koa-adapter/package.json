@@ -1,0 +1,9 @@
+{
+  "name": "@univ/koa-adapter",
+  "version": "0.1.0",
+  "description": "Koa adapter for Univ abstraction layer.",
+  "files": [
+    "lib"
+  ],
+  "main": "lib/index.js"
+}
