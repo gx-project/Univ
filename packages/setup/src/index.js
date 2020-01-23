@@ -1,5 +1,12 @@
 import setupLayer from "./layer";
+/**
+ * A Univ adapter.
+ * @typedef { Object } UnivAdapter
+ */
 
+/**
+ * @param { UnivAdapter } adapter
+ */
 export default function UnivBootstrap(adapter, builder) {
   if (!adapter) {
     throw new Error("You need specify a framework adapter");

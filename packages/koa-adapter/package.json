@@ -1,9 +1,13 @@
 {
-  "name": "@univ/koa-adapter",
+  "name": "@univ/koa",
   "version": "0.1.0",
   "description": "Koa adapter for Univ abstraction layer.",
   "files": [
     "lib"
   ],
-  "main": "lib/index.js"
+  "main": "lib/index.js",
+  "dependencies": {
+    "koa": "^2.11.0",
+    "koa-router": "^8.0.6"
+  }
 }
