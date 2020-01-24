@@ -1,4 +1,4 @@
-import setupLayer from "./layer";
+import SetupLayer from "./layer";
 /**
  * A Univ adapter.
  * @typedef { Object } UnivAdapter
@@ -14,7 +14,7 @@ export default function UnivBootstrap(adapter, builder) {
 
   checkAdapter(adapter);
 
-  const layer = setupLayer(adapter);
+  const layer = new SetupLayer(adapter);
   builder && builder(layer);
 
   return layer;

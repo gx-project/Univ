@@ -1,4 +1,5 @@
 import Univ from "../packages/setup/src";
+import { kAdapter, kServer } from "../packages/setup/src/symbols";
 import UFastify from "../packages/fastify-adapter/src/index";
 import UExpress from "../packages/express-adapter/src/index";
 import request from "supertest";
@@ -53,41 +54,54 @@ function testWith(title, adapter) {
       app.close(done);
     });
 
+    /**
+     * General
+     */
     it("Be a valid Univ instance", async () => {
       make();
 
       const keys = [
-        "fwInstance",
-        "start",
-        "close",
-        "attach",
-        "endpoint",
-        "get",
-        "post",
-        "put",
-        "delete",
-        "options",
-        "head",
-        "patch"
+        [kAdapter, "object"],
+        [kServer, "object"],
+        ["engine", "string"],
+        ["adapterVersion", "string"],
+        ["fwInstance", "object|function"],
+        ["endpoint", "function"],
+        ["get", "function"],
+        ["post", "function"],
+        ["put", "function"],
+        ["delete", "function"],
+        ["options", "function"],
+        ["head", "function"],
+        ["patch", "function"]
+      ];
+
+      const props = [
+        ["start", "function"],
+        ["close", "function"],
+        ["attach", "function"]
       ];
 
       expect(app)
         .to.be.an("object")
-        .that.has.all.keys(keys);
+        .that.has.all.keys(keys.map(([key]) => key));
 
-      expect(app).to.have.property("fwInstance");
+      keys.map(([key, type]) =>
+        expect(typeof app[key]).to.match(new RegExp(type))
+      );
 
-      keys.map(key => {
-        if (key === "fwInstance") return;
-        expect(app[key]).to.be.a("function");
-      });
+      props.map(([prop, type]) =>
+        expect(app)
+          .to.have.property(prop)
+          .that.be.a(type)
+      );
 
       await app.start();
 
       expect(app)
         .to.have.property("server")
         .that.be.a("object")
-        .that.have.any.keys("address", "port");
+        .that.have.all.keys("address", "family", "port");
     });
 
     it("Callback start", done => {
@@ -176,7 +190,124 @@ function testWith(title, adapter) {
         .expect(200);
     });
 
-    describe("Route error response", () => {
+    it("Set headers", async () => {
+      make();
+
+      app.get("/", ctx => {
+        return { headers: { foo: "bar" } };
+      });
+
+      await app.start();
+      const baseUrl = `http://localhost:${app.server.port}`;
+
+      await request
+        .agent(baseUrl)
+        .get("/")
+        .expect("foo", "bar")
+        .expect(200);
+    });
+
+    it("Redirect", async () => {
+      make();
+
+      app.get("/", ctx => {
+        return { redirect: "/other" };
+      });
+
+      app.get("/other", ctx => {
+        return { content: { data: "hi" } };
+      });
+
+      await app.start();
+      const baseUrl = `http://localhost:${app.server.port}`;
+
+      await request
+        .agent(baseUrl)
+        .get("/")
+        .expect(302)
+        .expect("Location", "/other");
+    });
+
+    /**
+     * Erros
+     */
+    describe("Errors", () => {
+      describe("Tracker", () => {
+        it("Set error track", async () => {
+          make();
+
+          app.setErrorTracker(() => {});
+
+          expect(app.errorTracker).to.be.a("function");
+
+          await app.start();
+        });
+
+        it("Change error object", async () => {
+          make();
+
+          app.setErrorTracker(async error => {
+            error.statusCode = 501;
+          });
+
+          app.get("/", () => {
+            throw new Error("tra");
+          });
+
+          await app.start();
+          const baseUrl = `http://localhost:${app.server.port}`;
+
+          await request
+            .agent(baseUrl)
+            .get("/")
+            .expect(501);
+        });
+
+        it("Stop the flow and change the response", async () => {
+          make();
+
+          app.setErrorTracker(async (error, UnivCtx) => {
+            if (error.message === "tra") {
+              UnivCtx.response.emit({ content: { ok: true } });
+
+              return false;
+            }
+          });
+
+          app.get("/", () => {
+            throw new Error("tra");
+          });
+
+          await app.start();
+          const baseUrl = `http://localhost:${app.server.port}`;
+
+          await request
+            .agent(baseUrl)
+            .get("/")
+            .expect(200, { ok: true });
+        });
+
+        it("Return a error instance", async () => {
+          make();
+
+          app.setErrorTracker(() => {
+            return new Error("A error instance");
+          });
+
+          app.get("/", () => {
+            throw new Error("tra");
+          });
+
+          await app.start();
+          const baseUrl = `http://localhost:${app.server.port}`;
+
+          await request
+            .agent(baseUrl)
+            .get("/")
+            .expect(500, { ...e500, message: "A error instance" });
+        });
+      });
+
       it("Throw in controller", async () => {
         make();
 
@@ -259,60 +390,15 @@ function testWith(title, adapter) {
       });
     });
 
-    it("Set headers", async () => {
-      make();
-
-      app.get("/", ctx => {
-        return { headers: { foo: "bar" } };
-      });
-
-      await app.start();
-      const baseUrl = `http://localhost:${app.server.port}`;
-
-      await request
-        .agent(baseUrl)
-        .get("/")
-        .expect("foo", "bar")
-        .expect(200);
-    });
-
-    it("Redirect", async () => {
-      make();
-
-      app.get("/", ctx => {
-        return { redirect: "/other" };
-      });
-
-      app.get("/other", ctx => {
-        return { content: { data: "hi" } };
-      });
-
-      await app.start();
-      const baseUrl = `http://localhost:${app.server.port}`;
-
-      await request
-        .agent(baseUrl)
-        .get("/")
-        .expect(302)
-        .expect("Location", "/other");
-    });
-
+    /**
+     * Busboy
+     */
     describe("Busboy", () => {
       it("Error if not valid Content-Type", async () => {
         make();
 
         app.get("/", UnivContext => {
           UnivContext.request.busboy();
-
-          /*
-          UnivContext.request.busboy({
-            onEnd(error, fields) {
-              if (error) {
-                UnivContext.response.emit({ error });
-              }
-            }
-          });
-          */
         });
 
         await app.start();
@@ -345,17 +431,6 @@ function testWith(title, adapter) {
               content: { ok: true, bytwo: parseInt(fields.foo) * 2 }
             });
           });
-
-          /*
-          UnivContext.request.busboy({
-            onEnd(err, fields) {
-              if (err) console.log(err);
-              UnivContext.response.emit({
-                content: { ok: true, bytwo: parseInt(fields.foo) * 2 }
-              });
-            }
-          });
-          */
         });
 
         await app.start();
@@ -388,24 +463,6 @@ function testWith(title, adapter) {
               content: { fileContent }
             });
           });
-
-          /*
-          UnivContext.request.busboy({
-            onFile(field, stream, name, encoding, mime) {
-              const chunks = [];
-
-              stream.on("data", chunk => chunks.push(chunk));
-              stream.on("end", () => (fileContent = chunks.toString()));
-            },
-            onEnd(err, fields) {
-              if (err) console.log(err);
-
-              UnivContext.response.emit({
-                content: { fileContent }
-              });
-            }
-          });
-          */
         });
 
         await app.start();
@@ -417,6 +474,86 @@ function testWith(title, adapter) {
           .attach("file", Buffer.from("ok"), "testUpload.txt")
           .expect("Content-Type", /json/)
           .expect(200, { fileContent: "ok" });
+      });
+    });
+
+    /**
+     * Cookies
+     */
+    describe("Cookies", () => {
+      it("Set and get", async () => {
+        make({ cookies: true });
+
+        const value = String(Date.now());
+
+        app.get("/", ctx => {
+          ctx.cookies.set("foo", value);
+
+          return { content: { value } };
+        });
+
+        app.get("/get", ctx => {
+          const cookie = ctx.cookies.get("foo");
+
+          expect(cookie).to.be.equal(value);
+          return { content: { ok: true } };
+        });
+
+        await app.start();
+        const baseUrl = `http://localhost:${app.server.port}`;
+
+        const res = await request
+          .agent(baseUrl)
+          .get("/")
+          .expect("Content-Type", /json/)
+          .expect(200, { value });
+
+        await request
+          .agent(baseUrl)
+          .get("/get")
+          .set("Cookie", res.headers["set-cookie"])
+          .expect("Content-Type", /json/)
+          .expect(200, { ok: true });
+      });
+
+      it("Signed", async () => {
+        make({
+          cookies: {
+            secret: "asd"
+          }
+        });
+
+        const value = String(Date.now());
+
+        app.get("/", ctx => {
+          ctx.cookies.set("foo", value, { signed: true });
+
+          return { content: { value } };
+        });
+
+        app.get("/get", ctx => {
+          const cookie = ctx.cookies.get("foo", { signed: true });
+
+          expect(cookie).to.be.equal(value);
+
+          return { content: { ok: true } };
+        });
+
+        await app.start();
+        const baseUrl = `http://localhost:${app.server.port}`;
+
+        const res = await request
+          .agent(baseUrl)
+          .get("/")
+          .expect("Content-Type", /json/)
+          .expect(200, { value });
+
+        await request
+          .agent(baseUrl)
+          .get("/get")
+          .set("Cookie", res.headers["set-cookie"])
+          .expect("Content-Type", /json/)
+          .expect(200, { ok: true });
       });
     });
   });

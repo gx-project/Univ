@@ -1,21 +1,30 @@
-import requestAdapter from "./request";
-import responseAdapter, { sendError } from "./response";
+import createContext from "./context";
+import { sendError } from "./response";
 
 export default function callAdaptLayer(Univ, controller) {
   return async function(req, res) {
+    const univContext = createContext(req, res);
+    const frameworkContext = { req, res };
+
     try {
-      const request = requestAdapter(req);
-      const response = responseAdapter(res, req);
+      const result = await controller(univContext, frameworkContext, Univ);
 
-      const result = await controller(
-        { request, response, instance: Univ.fwInstance },
-        { req, res },
-        Univ
-      );
-
-      if (typeof result !== "undefined") return response.emit(result);
+      if (typeof result !== "undefined")
+        return univContext.response.emit(result);
     } catch (error) {
-      sendError(res, error);
+      if (Univ.errorTracker) {
+        const trackerResult = await Univ.errorTracker(
+          error,
+          univContext,
+          frameworkContext
+        );
+
+        if (trackerResult instanceof Error)
+          return sendError(res, trackerResult);
+        if (trackerResult === false) return;
+      }
+
+      return sendError(res, error);
     }
   };
 }

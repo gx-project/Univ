@@ -1,43 +1,57 @@
 import routerWrapper from "./routerWrapper";
 import { kAdapter, kServer } from "./symbols";
 
-export default function SetupLayer(adapter) {
-  const internal = {};
+export default class SetupLayer {
+  constructor(adapter) {
+    this[kAdapter] = adapter;
+    this[kServer] = adapter.Server();
 
-  internal[kAdapter] = adapter;
-  internal[kServer] = adapter.Server();
+    this.engine = adapter.engine;
+    this.adapterVersion = adapter.version;
 
-  internal.engine = adapter.engine;
-  internal.adapterVersion = adapter.version;
+    this.fwInstance = this[kServer].instance;
 
-  internal.fwInstance = internal[kServer].instance;
-  // internal[kRouter] = ;
+    const initialRouter = routerWrapper(this, this[kServer].startRoutingPoint);
 
-  const _public = {
-    fwInstance: internal.fwInstance,
-    async start(callback) {
-      const server = await internal[kServer].start();
-      callback && callback(server);
-      _public.server = server;
-      return server;
-    },
-    async close(callback) {
-      await internal[kServer].close();
-      callback && callback();
-    },
-    ...routerWrapper(internal, internal[kServer].startRoutingPoint)
-  };
+    this.endpoint = initialRouter.endpoint;
+    this.get = initialRouter.get;
+    this.post = initialRouter.post;
+    this.put = initialRouter.put;
+    this.delete = initialRouter.delete;
+    this.options = initialRouter.options;
+    this.head = initialRouter.head;
+    this.patch = initialRouter.patch;
+  }
 
-  _public.attach = function attach(key, value) {
-    throwIfReserverdOrAlreadyDeclaredKey(key, _public);
+  setErrorTracker(handler) {
+    this.errorTracker = handler;
+  }
 
-    _public[String(key)] = value;
-  };
-  return _public;
+  attach(key, value) {
+    throwIfReserverdOrAlreadyDeclaredKey(key, this);
+
+    this[String(key)] = value;
+  }
+
+  async start(callback) {
+    const server = await this[kServer].start();
+    callback && callback(server);
+    this.server = server;
+    return server;
+  }
+
+  async close(callback) {
+    await this[kServer].close();
+    callback && callback();
+  }
 }
 
 const reservedKeys = [
   "fwInstance",
+  "engine",
+  "adapterVersion",
+  "setErrorTracker",
+  "errorTracker",
   "server",
   "start",
   "close",

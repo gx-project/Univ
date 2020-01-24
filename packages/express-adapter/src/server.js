@@ -1,11 +1,13 @@
 import express, { urlencoded, Router } from "express";
 import Helmet from "helmet";
+import cookieParser from "cookie-parser";
 
 export default function makeExpressServer(configs = {}) {
   return function configureServer() {
     const {
       middlewares: { helmet = true } = {},
       port,
+      cookies,
       ...instanceConfig
     } = configs;
 
@@ -23,6 +25,12 @@ export default function makeExpressServer(configs = {}) {
       );
 
     instance.use(urlencoded({ extended: true }));
+
+    if (cookies) {
+      const { secret, ...parseOptions } = cookies;
+      instance.use(cookieParser(secret, parseOptions));
+    }
+
     let server;
     const startRoutingPoint = Router();
 

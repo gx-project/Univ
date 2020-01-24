@@ -11,7 +11,7 @@ export default function routerWrapper(Univ, parent) {
     });
   }
 
-  return {
+  return Object.freeze({
     endpoint(url, callback) {
       Endpoint(parent, url, endpoint => {
         const wrapper = routerWrapper(Univ, endpoint);
@@ -40,5 +40,5 @@ export default function routerWrapper(Univ, parent) {
     patch(url, controller) {
       return routeShortcut("PATCH", url, controller);
     }
-  };
+  });
 }

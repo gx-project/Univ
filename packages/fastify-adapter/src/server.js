@@ -1,11 +1,13 @@
 import fastify from "fastify";
 import fastifyHelmet from "fastify-helmet";
+import fastifyCookie from "fastify-cookie";
 
 export default function makeFastifyServer(configs = {}) {
   return function configureServer() {
     const {
       middlewares: { helmet = true } = {},
       port,
+      cookies,
       ...instanceConfig
     } = configs;
 
@@ -20,6 +22,11 @@ export default function makeFastifyServer(configs = {}) {
             }
           : {}
       );
+
+    if (cookies) {
+      const { secret, ...parseOptions } = cookies;
+      instance.register(fastifyCookie, { secret, parseOptions });
+    }
 
     instance.addContentTypeParser("multipart", (req, done) => {
       done();
