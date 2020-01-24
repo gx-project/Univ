@@ -1,6 +1,9 @@
 # Univ
 
-In devepoment, not published yet.
+[![build](https://travis-ci.org/GX-mob/Univ.svg?branch=master)](https://travis-ci.org/GX-mob/Univ)
+[![codecov](https://codecov.io/gh/GX-mob/Univ/branch/master/graph/badge.svg)](https://codecov.io/gh/GX-mob/Univ)
+
+In development, not published in npm, yet.
 
 ##### An abstraction layer with some useful things to build node http server using a single code base that works with most used frameworks, focusing on easy switching.
 
@@ -16,7 +19,7 @@ Following objective of the Primus, built to prevent framework lock-in. Make a fr
 
 ### Usage
 
-##### You need the Setup and a adapter.
+##### You need the Setup and an adapter.
 
 ```shell
 npm i @univ/setup @univ/fastify
