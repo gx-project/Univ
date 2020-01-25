@@ -27,11 +27,15 @@ npm i @univ/setup @univ/fastify
 
 ```javascript
 import Univ from "@univ/setup";
-import UnivFastify from "@univ/fastify"
+import fastify from "@univ/fastify"
+import sockets from "@univ/socket-io"
 
-const app = Univ(UnivFastify({
+const app = Univ(fastify,{
   port: 3000
-}));
+});
+
+app.attach("redis", ioRedisClient);
+app.attach("socket", sockets())
 
 // In the contoller function you get 3 params, UnivContext, FrameworkContext, UnivInstance
 app.get("/", async uctx => {
@@ -57,5 +61,26 @@ app.endpoint("/users", users => {
   content-type: application/json
   content: { statusCode: 404, error: "Not Found", message: "you're lost" }
 */
+
+app.sockets.on("connection", socket => {
+  socket.listen("message", async content => {
+    try {
+      const messages = await app.redis.get("messages");
+
+      messages.push({ content, author: socket.id, ts: Date.now() });
+
+      await app.redis.set("messages", messages);
+
+      // auto ack
+      return { success: true };
+    } catch (e) {
+      console.error(e);
+
+      // auto ack
+      return { sucess: false }
+    }
+
+  });
+});
 })
 ```
