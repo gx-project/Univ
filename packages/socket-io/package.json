@@ -1,0 +1,13 @@
+{
+  "name": "@univ/socket-io",
+  "version": "0.1.0",
+  "description": "Socket.io approach to Univ abstraction layer.",
+  "files": [
+    "lib"
+  ],
+  "main": "lib/index.js",
+  "dependencies": {
+    "extensor": "^0.1.5",
+    "socket.io": "^2.3.0"
+  }
+}

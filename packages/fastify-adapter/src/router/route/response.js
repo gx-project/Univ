@@ -1,4 +1,4 @@
-class UnivFastifyErrorResponse extends Error {
+class UnivErrorResponse extends Error {
   constructor(message, { code, statusCode = 500, headers = {} }) {
     super(message);
 
@@ -11,7 +11,7 @@ class UnivFastifyErrorResponse extends Error {
 
 export default function responseAdapter(res, req) {
   return {
-    emit: function fastifyEmitReponse(response) {
+    emit: function emitReponse(response) {
       const {
         code = 200,
         type = "application/json",
@@ -22,12 +22,16 @@ export default function responseAdapter(res, req) {
         error
       } = response;
 
-      if (response instanceof Error) return res.send(response);
+      if (response instanceof Error) {
+        res.send(response);
+        return;
+      }
 
       if (error) {
         const { message, ...fragments } = error;
 
-        return res.send(new UnivFastifyErrorResponse(message, fragments));
+        res.send(new UnivErrorResponse(message, fragments));
+        return;
       }
 
       if (headers) {
@@ -35,10 +39,11 @@ export default function responseAdapter(res, req) {
       }
 
       if (redirect) {
-        return res.redirect(redirect);
+        res.redirect(redirect);
+        return;
       }
 
-      return res
+      res
         .code(code)
         .header("Content-Type", `${type}; charset=${charset}`)
         .send(content);

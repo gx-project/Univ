@@ -1,7 +1,10 @@
-import Univ from "../packages/setup/src";
-import { kAdapter, kServer } from "../packages/setup/src/symbols";
+import Univ from "../packages/setup/src/index";
 import UFastify from "../packages/fastify-adapter/src/index";
 import UExpress from "../packages/express-adapter/src/index";
+import USockets from "../packages/socket-io/src";
+
+import SocketClient from "socket.io-client";
+
 import request from "supertest";
 import { expect } from "chai";
 
@@ -12,28 +15,36 @@ const e500 = {
 
 describe("Univ", () => {
   it("Throw if not provided adapter", () => {
-    expect(() => Univ()).to.throw("You need specify a framework adapter");
+    expect(() => new Univ()).to.throw("Invalid adapter");
   });
 
   it("Throw if invalid adapter", () => {
-    expect(() => Univ(true)).to.throw("This adapter is invalid");
+    expect(() => new Univ(true)).to.throw("Invalid adapter");
   });
 
   it("Throw if attempt to attach reserved property name", () => {
     expect(() => {
-      const app = Univ(UFastify());
+      const app = new Univ(UFastify);
 
       app.attach("get", "foo");
-    }).to.throw('You can\'t use a reserved property name "get" to instance');
+    }).to.throw('You can\'t attach a reserved property name "get" to instance');
   });
 
   it("Throw if attempt to attach already declared property name", () => {
     expect(() => {
-      Univ(UFastify(), app => {
-        app.attach("foo", "bar");
-        app.attach("foo", "bar");
-      });
-    }).to.throw('You already declared the property name "foo" to instance');
+      const app = new Univ(UFastify);
+      app.attach("foo", "bar");
+      app.attach("foo", "bar");
+    }).to.throw('You already attached the property name "foo" to instance');
+  });
+
+  it("Define namespace like a plugin", done => {
+    const app = new Univ(UFastify);
+    app.attach("bar", "foo");
+    app.attach("foo", appInstance => {
+      expect(appInstance.bar).to.be.equal("foo");
+      done();
+    });
   });
 
   testWith("Fastify", UFastify);
@@ -47,8 +58,13 @@ function testWith(title, adapter) {
     let app;
 
     const make = options => {
-      app = Univ(adapter(options));
+      app = null;
+      app = new Univ(adapter, options);
     };
+
+    const baseUrl = () => `http://localhost:${app.server.info.port}`;
+
+    const createAgent = () => request.agent(baseUrl());
 
     afterEach(done => {
       app.close(done);
@@ -61,11 +77,8 @@ function testWith(title, adapter) {
       make();
 
       const keys = [
-        [kAdapter, "object"],
-        [kServer, "object"],
-        ["engine", "string"],
-        ["adapterVersion", "string"],
-        ["fwInstance", "object|function"],
+        ["adapter", "object"],
+        ["server", "object"],
         ["endpoint", "function"],
         ["get", "function"],
         ["post", "function"],
@@ -77,6 +90,8 @@ function testWith(title, adapter) {
       ];
 
       const props = [
+        ["attach", "function"],
+        ["setErrorTracker", "function"],
         ["start", "function"],
         ["close", "function"],
         ["attach", "function"]
@@ -86,9 +101,9 @@ function testWith(title, adapter) {
         .to.be.an("object")
         .that.has.all.keys(keys.map(([key]) => key));
 
-      keys.map(([key, type]) =>
-        expect(typeof app[key]).to.match(new RegExp(type))
-      );
+      keys.map(([key, type]) => {
+        expect(typeof app[key]).to.match(new RegExp(type));
+      });
 
       props.map(([prop, type]) =>
         expect(app)
@@ -98,8 +113,8 @@ function testWith(title, adapter) {
 
       await app.start();
 
-      expect(app)
-        .to.have.property("server")
+      expect(app.server)
+        .to.have.property("info")
         .that.be.a("object")
         .that.have.all.keys("address", "family", "port");
     });
@@ -146,17 +161,18 @@ function testWith(title, adapter) {
       });
 
       await app.start();
-      const baseUrl = `http://localhost:${app.server.port}`;
+
+      const agent = createAgent();
 
       await Promise.all([
         ...methods.map(([method, content]) =>
-          makeRequest(baseUrl, "", method, content)
+          makeRequest("/", method, content)
         ),
-        makeRequest(baseUrl, "/users", "get", content.content)
+        makeRequest("/users", "get", content.content)
       ]);
 
-      function makeRequest(base, url, method, content) {
-        const Request = request.agent(base)[method](url);
+      function makeRequest(url, method, content) {
+        const Request = agent[method](url);
 
         if (content)
           return Request.expect("Content-Type", /json/).expect(
@@ -166,6 +182,19 @@ function testWith(title, adapter) {
 
         return Request.expect(200);
       }
+    });
+
+    it("Route parameters", async () => {
+      make();
+
+      app.get("/:id", uctx => {
+        return { content: { id: uctx.params.id } };
+      });
+
+      await app.start();
+      const agent = createAgent();
+
+      await agent.get("/123").expect(200, { id: "123" });
     });
 
     it("Configure helmet middleware", async () => {
@@ -181,10 +210,7 @@ function testWith(title, adapter) {
 
       await app.start();
 
-      const baseUrl = `http://localhost:${app.server.port}`;
-
-      await request
-        .agent(baseUrl)
+      await createAgent()
         .get("/")
         .expect("X-Powered-By", "PHP 4.2.0")
         .expect(200);
@@ -198,10 +224,8 @@ function testWith(title, adapter) {
       });
 
       await app.start();
-      const baseUrl = `http://localhost:${app.server.port}`;
 
-      await request
-        .agent(baseUrl)
+      await createAgent()
         .get("/")
         .expect("foo", "bar")
         .expect(200);
@@ -219,10 +243,8 @@ function testWith(title, adapter) {
       });
 
       await app.start();
-      const baseUrl = `http://localhost:${app.server.port}`;
 
-      await request
-        .agent(baseUrl)
+      await createAgent()
         .get("/")
         .expect(302)
         .expect("Location", "/other");
@@ -255,10 +277,8 @@ function testWith(title, adapter) {
           });
 
           await app.start();
-          const baseUrl = `http://localhost:${app.server.port}`;
 
-          await request
-            .agent(baseUrl)
+          await createAgent()
             .get("/")
             .expect(501);
         });
@@ -268,7 +288,7 @@ function testWith(title, adapter) {
 
           app.setErrorTracker(async (error, UnivCtx) => {
             if (error.message === "tra") {
-              UnivCtx.response.emit({ content: { ok: true } });
+              UnivCtx.emit({ content: { ok: true } });
 
               return false;
             }
@@ -279,10 +299,8 @@ function testWith(title, adapter) {
           });
 
           await app.start();
-          const baseUrl = `http://localhost:${app.server.port}`;
 
-          await request
-            .agent(baseUrl)
+          await createAgent()
             .get("/")
             .expect(200, { ok: true });
         });
@@ -299,10 +317,8 @@ function testWith(title, adapter) {
           });
 
           await app.start();
-          const baseUrl = `http://localhost:${app.server.port}`;
 
-          await request
-            .agent(baseUrl)
+          await createAgent()
             .get("/")
             .expect(500, { ...e500, message: "A error instance" });
         });
@@ -316,12 +332,10 @@ function testWith(title, adapter) {
         });
 
         await app.start();
-        const baseUrl = `http://localhost:${app.server.port}`;
 
-        await request
-          .agent(baseUrl)
+        await createAgent()
           .get("/")
-          .expect(500);
+          .expect(500, { ...e500, message: "test" });
       });
 
       it('"error" property in controller return object', async () => {
@@ -336,10 +350,8 @@ function testWith(title, adapter) {
         });
 
         await app.start();
-        const baseUrl = `http://localhost:${app.server.port}`;
 
-        await request
-          .agent(baseUrl)
+        await createAgent()
           .get("/")
           .expect(500, { ...e500, message: "voc" });
       });
@@ -352,10 +364,8 @@ function testWith(title, adapter) {
         });
 
         await app.start();
-        const baseUrl = `http://localhost:${app.server.port}`;
 
-        await request
-          .agent(baseUrl)
+        await createAgent()
           .get("/")
           .expect(500, { ...e500, message: "Custom message" });
       });
@@ -375,10 +385,8 @@ function testWith(title, adapter) {
         });
 
         await app.start();
-        const baseUrl = `http://localhost:${app.server.port}`;
 
-        await request
-          .agent(baseUrl)
+        await createAgent()
           .get("/404-object")
           .expect("foo", "bar")
           .expect(404, {
@@ -398,14 +406,12 @@ function testWith(title, adapter) {
         make();
 
         app.get("/", UnivContext => {
-          UnivContext.request.busboy();
+          UnivContext.busboy();
         });
 
         await app.start();
-        const baseUrl = `http://localhost:${app.server.port}`;
 
-        await request
-          .agent(baseUrl)
+        await createAgent()
           .get("/")
           .expect("Content-Type", /json/)
           .expect(500, {
@@ -420,24 +426,22 @@ function testWith(title, adapter) {
 
         app.post("/", UnivContext => {
           const fields = {};
-          const busboy = UnivContext.request.busboy();
+          const busboy = UnivContext.busboy();
 
           busboy.on("field", (key, value) => {
             fields[String(key)] = value;
           });
 
           busboy.on("finish", () => {
-            UnivContext.response.emit({
+            UnivContext.emit({
               content: { ok: true, bytwo: parseInt(fields.foo) * 2 }
             });
           });
         });
 
         await app.start();
-        const baseUrl = `http://localhost:${app.server.port}`;
 
-        await request
-          .agent(baseUrl)
+        await createAgent()
           .post("/")
           .field("foo", 5)
           .expect("Content-Type", /json/)
@@ -449,7 +453,7 @@ function testWith(title, adapter) {
 
         app.post("/", UnivContext => {
           let fileContent;
-          const busboy = UnivContext.request.busboy();
+          const busboy = UnivContext.busboy();
 
           busboy.on("file", (field, stream, name, encoding, mime) => {
             const chunks = [];
@@ -459,17 +463,15 @@ function testWith(title, adapter) {
           });
 
           busboy.on("finish", () => {
-            UnivContext.response.emit({
+            UnivContext.emit({
               content: { fileContent }
             });
           });
         });
 
         await app.start();
-        const baseUrl = `http://localhost:${app.server.port}`;
 
-        await request
-          .agent(baseUrl)
+        await createAgent()
           .post("/")
           .attach("file", Buffer.from("ok"), "testUpload.txt")
           .expect("Content-Type", /json/)
@@ -500,16 +502,14 @@ function testWith(title, adapter) {
         });
 
         await app.start();
-        const baseUrl = `http://localhost:${app.server.port}`;
+        const agent = createAgent();
 
-        const res = await request
-          .agent(baseUrl)
+        const res = await agent
           .get("/")
           .expect("Content-Type", /json/)
           .expect(200, { value });
 
-        await request
-          .agent(baseUrl)
+        await agent
           .get("/get")
           .set("Cookie", res.headers["set-cookie"])
           .expect("Content-Type", /json/)
@@ -540,21 +540,129 @@ function testWith(title, adapter) {
         });
 
         await app.start();
-        const baseUrl = `http://localhost:${app.server.port}`;
+        const agent = createAgent();
 
-        const res = await request
-          .agent(baseUrl)
+        const res = await agent
           .get("/")
           .expect("Content-Type", /json/)
           .expect(200, { value });
 
-        await request
-          .agent(baseUrl)
+        await agent
           .get("/get")
           .set("Cookie", res.headers["set-cookie"])
           .expect("Content-Type", /json/)
           .expect(200, { ok: true });
       });
     });
+
+    describe("Socket.io", () => {
+      it("Basics, custom listener & ack", done => {
+        make();
+
+        app.attach("sockets", USockets());
+
+        app.sockets.on("connection", socket => {
+          socket.on("normal", data => {
+            expect(data).to.be.equal("foo");
+          });
+
+          socket.listen("test", num => {
+            num = Number(num);
+            expect(num).to.be.equal(2);
+          });
+
+          socket.listen("test-ack", num => {
+            num = Number(num);
+            return num * 2;
+          });
+        });
+
+        (async function() {
+          await app.start();
+          const client = SocketClient(baseUrl());
+
+          client.on("connect", () => {
+            client.emit("normal", "foo");
+            client.emit("test", 2);
+            client.emit("test-ack", 2, response => {
+              expect(response).to.be.equal(4);
+              done();
+            });
+          });
+        })();
+      });
+
+      it("Error handler", done => {
+        make();
+
+        app.attach("sockets", USockets());
+
+        app.sockets.on("connection", socket => {
+          socket.listen("test", num => {
+            const error = new Error("oh no");
+            error.code = Number(num) * 2;
+            throw error;
+          });
+        });
+
+        app.sockets.onSocketError = (socket, event, error) => {
+          expect(error.code).to.be.equal(4);
+          done();
+        };
+
+        (async function() {
+          await app.start();
+          const client = SocketClient(baseUrl());
+
+          client.on("connect", () => client.emit("test", 2));
+        })();
+      });
+
+      it("Isoled error handler", done => {
+        make();
+
+        app.attach("sockets", USockets());
+
+        app.sockets.on("connection", socket => {
+          socket
+            .listen("test", num => {
+              const error = new Error("oh no");
+              error.code = Number(num) * 2;
+
+              throw error;
+            })
+            .error(error => {
+              expect(error.code).to.be.equal(4);
+              done();
+            });
+        });
+
+        (async function() {
+          await app.start();
+          const client = SocketClient(baseUrl());
+
+          client.on("connect", () => client.emit("test", 2));
+        })();
+      });
+    });
   });
 }
+
+/*
+const app = Univ(fastify());
+
+app.attach('sockets', UnivSocketIO());
+
+app.socket.onConnection( socket => {
+  socket.listen("event", )
+});
+app.sockets.on("connection", socket => {
+  socket.on("message", async ([message]) => {
+    const { id } = await db.insert(message);
+
+    // return emit a ack event
+    return { id };
+  });
+});
+
+*/

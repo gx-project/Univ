@@ -1,7 +1,5 @@
-import { kAdapter } from "./symbols";
-
 export default function routerWrapper(Univ, parent) {
-  const { Endpoint, Route } = Univ[kAdapter].Router;
+  const { Endpoint, Route } = Univ.adapter.Router;
 
   function routeShortcut(method, url, controller) {
     return Route(Univ, parent, {
@@ -11,14 +9,13 @@ export default function routerWrapper(Univ, parent) {
     });
   }
 
-  return Object.freeze({
+  return {
     endpoint(url, callback) {
       Endpoint(parent, url, endpoint => {
         const wrapper = routerWrapper(Univ, endpoint);
         callback(wrapper);
       });
     },
-
     get(url, controller) {
       return routeShortcut("GET", url, controller);
     },
@@ -40,5 +37,5 @@ export default function routerWrapper(Univ, parent) {
     patch(url, controller) {
       return routeShortcut("PATCH", url, controller);
     }
-  });
+  };
 }

@@ -2,11 +2,6 @@ import { name, version } from "../package.json";
 import * as Router from "./router";
 import Server from "./server";
 
-export default function UnivExpressAdapter(configs) {
-  return {
-    engine: name.split("/")[1],
-    version,
-    Router,
-    Server: Server(configs)
-  };
-}
+const engine = name.split("/")[1];
+
+export default { engine, version, Router, Server };

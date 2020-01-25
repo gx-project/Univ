@@ -42,7 +42,7 @@ const httpErrors = {
   511: "Network Authentication Required"
 };
 
-class UnivExpressErrorResponse extends Error {
+class UnivErrorResponse extends Error {
   constructor(message, { code, statusCode = 500, headers = {} }) {
     super(message);
 
@@ -64,7 +64,7 @@ export function sendError(res, error) {
 
 export default function responseAdapter(res, req) {
   return {
-    emit: function fastifyEmitReponse(response) {
+    emit: function emitReponse(response) {
       const {
         code = 200,
         type = "application/json",
@@ -80,7 +80,7 @@ export default function responseAdapter(res, req) {
       if (error) {
         const { message, ...fragments } = error;
 
-        return sendError(res, new UnivExpressErrorResponse(message, fragments));
+        return sendError(res, new UnivErrorResponse(message, fragments));
       }
       if (headers) {
         res.set(headers);

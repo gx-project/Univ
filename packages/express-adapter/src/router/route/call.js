@@ -9,8 +9,7 @@ export default function callAdaptLayer(Univ, controller) {
     try {
       const result = await controller(univContext, frameworkContext, Univ);
 
-      if (typeof result !== "undefined")
-        return univContext.response.emit(result);
+      if (typeof result !== "undefined") return univContext.emit(result);
     } catch (error) {
       if (Univ.errorTracker) {
         const trackerResult = await Univ.errorTracker(

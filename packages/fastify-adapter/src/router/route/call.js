@@ -7,8 +7,7 @@ export default function callAdaptLayer(Univ, controller) {
     try {
       const result = await controller(univContext, frameworkContext, Univ);
 
-      if (typeof result !== "undefined")
-        return univContext.response.emit(result);
+      if (typeof result !== "undefined") return univContext.emit(result);
     } catch (error) {
       if (Univ.errorTracker) {
         const trackerResult = await Univ.errorTracker(
@@ -17,11 +16,14 @@ export default function callAdaptLayer(Univ, controller) {
           frameworkContext
         );
 
-        if (trackerResult instanceof Error) return res.send(trackerResult);
+        if (trackerResult instanceof Error) {
+          res.send(trackerResult);
+          return;
+        }
         if (trackerResult === false) return;
       }
 
-      return res.send(error);
+      res.send(error);
     }
   };
 }
