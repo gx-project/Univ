@@ -8,6 +8,7 @@ const reservedKeys = [
   "start",
   "close",
   "attach",
+  "use",
   "endpoint",
   "get",
   "post",
@@ -28,6 +29,7 @@ export default class UnivSetupLayer {
 
     const initialRouter = routerWrapper(this, this.server.startRoutingPoint);
 
+    this.use = initialRouter.use;
     this.endpoint = initialRouter.endpoint;
     this.get = initialRouter.get;
     this.post = initialRouter.post;

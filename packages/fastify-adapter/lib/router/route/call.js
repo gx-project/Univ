@@ -5,26 +5,34 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.default = callAdaptLayer;
 
-var _request = _interopRequireDefault(require("./request"));
-
-var _response = _interopRequireDefault(require("./response"));
+var _context = _interopRequireDefault(require("./context"));
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function callAdaptLayer(Univ, controller) {
   return async function (req, res) {
+    const univContext = (0, _context.default)(req, res);
+    const frameworkContext = {
+      req,
+      res
+    };
+
     try {
-      const request = (0, _request.default)(req);
-      const response = (0, _response.default)(res);
-      const result = await controller({
-        request,
-        response,
-        instance: Univ.fwInstance
-      }, Univ);
-      return response.emit(result);
+      const result = await controller(univContext, frameworkContext, Univ);
+      if (typeof result !== "undefined") return univContext.emit(result);
     } catch (error) {
-      req.log.error(error);
-      return res.send(error);
+      if (Univ.errorTracker) {
+        const trackerResult = await Univ.errorTracker(error, univContext, frameworkContext);
+
+        if (trackerResult instanceof Error) {
+          res.send(trackerResult);
+          return;
+        }
+
+        if (trackerResult === false) return;
+      }
+
+      res.send(error);
     }
   };
 }

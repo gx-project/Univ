@@ -1,5 +1,5 @@
 export default function routerWrapper(Univ, parent) {
-  const { Endpoint, Route } = Univ.adapter.Router;
+  const { Middleware, Route, Endpoint } = Univ.adapter.Router;
 
   function routeShortcut(method, url, controller) {
     return Route(Univ, parent, {
@@ -11,10 +11,13 @@ export default function routerWrapper(Univ, parent) {
 
   return {
     endpoint(url, callback) {
-      Endpoint(parent, url, endpoint => {
+      Endpoint(Univ, { parent, url }, endpoint => {
         const wrapper = routerWrapper(Univ, endpoint);
         callback(wrapper);
       });
+    },
+    use(controller) {
+      Middleware(Univ, parent, controller);
     },
     get(url, controller) {
       return routeShortcut("GET", url, controller);

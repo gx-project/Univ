@@ -5,9 +5,12 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.default = endpointRegistry;
 
-function endpointRegistry(parent, url, callback) {
+function endpointRegistry(Univ, {
+  parent,
+  url
+}, callback) {
   return parent.register(function (endpoint, opts, done) {
-    callback(endpoint);
+    callback(endpoint, Univ);
     done();
   }, {
     prefix: url

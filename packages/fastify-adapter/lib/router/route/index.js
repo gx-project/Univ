@@ -14,7 +14,7 @@ function routeRegistry(Univ, parent, {
   url,
   controller
 }) {
-  const handler = typeof controller === "function" ? controller : controller.handler;
+  const handler = typeof controller === "function" ? controller : controller.controller;
   parent.route({
     method,
     url,

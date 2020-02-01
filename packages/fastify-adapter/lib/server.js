@@ -9,43 +9,51 @@ var _fastify = _interopRequireDefault(require("fastify"));
 
 var _fastifyHelmet = _interopRequireDefault(require("fastify-helmet"));
 
-var _fastifyFormbody = _interopRequireDefault(require("fastify-formbody"));
-
-var _fastifyMultipart = _interopRequireDefault(require("fastify-multipart"));
+var _fastifyCookie = _interopRequireDefault(require("fastify-cookie"));
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-function makeFastifyServer({
-  middlewares: {
-    helmet = true,
-    formBody = true,
-    multiPart = true
-  } = {},
-  port,
-  ...config
-} = {}) {
-  return function configureServer() {
-    const instance = (0, _fastify.default)(config || {});
-    helmet && instance.register(_fastifyHelmet.default, helmet !== true ? { ...helmet
-    } : {});
-    formBody && instance.register(_fastifyFormbody.default, formBody !== true ? { ...formBody
-    } : {});
-    multiPart && instance.register(_fastifyMultipart.default, multiPart !== true ? {
-      addToBody: true,
-      ...multiPart
-    } : {});
-    return {
-      instance,
+function makeFastifyServer(configs) {
+  const {
+    middlewares: {
+      helmet = true
+    } = {},
+    port,
+    cookies,
+    ...instanceConfig
+  } = configs;
+  const instance = (0, _fastify.default)(instanceConfig);
+  helmet && instance.register(_fastifyHelmet.default, helmet !== true ? { ...helmet
+  } : {});
 
-      decorator(key, value) {
-        instance.decorate(key, value);
-      },
+  if (cookies) {
+    const {
+      secret,
+      ...parseOptions
+    } = cookies;
+    instance.register(_fastifyCookie.default, {
+      secret,
+      parseOptions
+    });
+  }
 
-      async start() {
-        await instance.listen(port);
-      }
+  instance.addContentTypeParser("multipart", (req, done) => {
+    done();
+  });
+  return {
+    configs,
+    instance,
+    startRoutingPoint: instance,
 
-    };
+    async start() {
+      await instance.listen(port);
+      return instance.server.address();
+    },
+
+    close: () => {
+      instance.server.close();
+      return Promise.resolve();
+    }
   };
 }
 

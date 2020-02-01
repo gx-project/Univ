@@ -79,6 +79,7 @@ function testWith(title, adapter) {
       const keys = [
         ["adapter", "object"],
         ["server", "object"],
+        ["use", "function"],
         ["endpoint", "function"],
         ["get", "function"],
         ["post", "function"],
@@ -182,6 +183,46 @@ function testWith(title, adapter) {
 
         return Request.expect(200);
       }
+    });
+
+    describe("middlewares", () => {
+      it("attach property to context", async () => {
+        make();
+
+        const propValue = Date.now();
+
+        app.use(async ctx => {
+          ctx.attach("asd", propValue);
+        });
+
+        app.get("/", async ctx => {
+          return { content: { ts: ctx.asd } };
+        });
+
+        await app.start();
+        const agent = createAgent();
+
+        await agent.get("/").expect(200, { ts: propValue });
+      });
+
+      it("Throw if attempt to attach reserved property name", async () => {
+        make();
+
+        const propValue = Date.now();
+
+        app.use(async ctx => {
+          ctx.attach("body", propValue);
+        });
+
+        app.get("/", async ctx => {
+          return { content: { ts: ctx.asd } };
+        });
+
+        await app.start();
+        const agent = createAgent();
+
+        await agent.get("/").expect(500);
+      });
     });
 
     it("Route parameters", async () => {
@@ -435,6 +476,7 @@ function testWith(title, adapter) {
           busboy.on("finish", () => {
             UnivContext.emit({
               content: { ok: true, bytwo: parseInt(fields.foo) * 2 }
+              // content: { ok: true, bytwo: parseInt(UnivContext.body.foo) * 2 }
             });
           });
         });
@@ -454,6 +496,15 @@ function testWith(title, adapter) {
         app.post("/", UnivContext => {
           let fileContent;
           const busboy = UnivContext.busboy();
+
+          /*
+          UnivContext.onFile((field, stream, name, encoding, mime) => {
+            const chunks = [];
+
+            stream.on("data", chunk => chunks.push(chunk));
+            stream.on("end", () => (fileContent = chunks.toString()));
+          }));
+          */
 
           busboy.on("file", (field, stream, name, encoding, mime) => {
             const chunks = [];
@@ -647,22 +698,3 @@ function testWith(title, adapter) {
     });
   });
 }
-
-/*
-const app = Univ(fastify());
-
-app.attach('sockets', UnivSocketIO());
-
-app.socket.onConnection( socket => {
-  socket.listen("event", )
-});
-app.sockets.on("connection", socket => {
-  socket.on("message", async ([message]) => {
-    const { id } = await db.insert(message);
-
-    // return emit a ack event
-    return { id };
-  });
-});
-
-*/

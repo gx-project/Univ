@@ -5,13 +5,11 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.default = routerWrapper;
 
-var _symbols = require("./symbols");
-
 function routerWrapper(Univ, parent) {
   const {
     Endpoint,
     Route
-  } = Univ[_symbols.kAdapter].Router;
+  } = Univ.adapter.Router;
 
   function routeShortcut(method, url, controller) {
     return Route(Univ, parent, {
@@ -23,7 +21,10 @@ function routerWrapper(Univ, parent) {
 
   return {
     endpoint(url, callback) {
-      Endpoint(parent, url, endpoint => {
+      Endpoint(Univ, {
+        parent,
+        url
+      }, endpoint => {
         const wrapper = routerWrapper(Univ, endpoint);
         callback(wrapper);
       });
@@ -53,8 +54,8 @@ function routerWrapper(Univ, parent) {
       return routeShortcut("HEAD", url, controller);
     },
 
-    path(url, controller) {
-      return routeShortcut("PATH", url, controller);
+    patch(url, controller) {
+      return routeShortcut("PATCH", url, controller);
     }
 
   };

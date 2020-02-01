@@ -62,38 +62,36 @@ export function sendError(res, error) {
     .send({ statusCode, message, code, error: httpErrors[statusCode] });
 }
 
-export default function responseAdapter(res, req) {
-  return {
-    emit: function emitReponse(response) {
-      const {
-        code = 200,
-        type = "application/json",
-        charset = "utf-8",
-        redirect,
-        headers,
-        content,
-        error
-      } = response;
+export default function createEmitter(res, req) {
+  return function emit(response) {
+    const {
+      code = 200,
+      type = "application/json",
+      charset = "utf-8",
+      redirect,
+      headers,
+      content,
+      error
+    } = response;
 
-      if (response instanceof Error) return sendError(res, response);
+    if (response instanceof Error) return sendError(res, response);
 
-      if (error) {
-        const { message, ...fragments } = error;
+    if (error) {
+      const { message, ...fragments } = error;
 
-        return sendError(res, new UnivErrorResponse(message, fragments));
-      }
-      if (headers) {
-        res.set(headers);
-      }
-
-      if (redirect) {
-        return res.redirect(redirect);
-      }
-
-      return res
-        .status(code)
-        .set("Content-Type", `${type}; charset=${charset}`)
-        .send(content);
+      return sendError(res, new UnivErrorResponse(message, fragments));
     }
+    if (headers) {
+      res.set(headers);
+    }
+
+    if (redirect) {
+      return res.redirect(redirect);
+    }
+
+    return res
+      .status(code)
+      .set("Content-Type", `${type}; charset=${charset}`)
+      .send(content);
   };
 }

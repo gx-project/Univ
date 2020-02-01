@@ -1,4 +1,5 @@
 import Route from "./route";
 import Endpoint from "./endpoint";
+import Middleware from "./middleware";
 
-export { Route, Endpoint };
+export { Middleware, Route, Endpoint };

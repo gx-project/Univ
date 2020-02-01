@@ -30,7 +30,6 @@ export default function makeFastifyServer(configs) {
   instance.addContentTypeParser("multipart", (req, done) => {
     done();
   });
-  // instance.register(fastifyMultipart);
 
   return {
     configs,
